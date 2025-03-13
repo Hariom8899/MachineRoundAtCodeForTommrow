@@ -3,6 +3,9 @@ const bcrypt = require('bcrypt');
 const User = require('../models/user');
 const jwt = require('jsonwebtoken');
 const { validateSingUpData } = require('../utils/validation');
+const nodemailer = require("nodemailer");
+
+
 const authRouter = express.Router();
 
 authRouter.post('/signUp', async (req, res) => {
@@ -33,9 +36,7 @@ authRouter.post('/login', async (req, res) => {
         throw new Error('Please Login No Such Email Exists');
     }
     const hash = user.password;
-    // console.log(user);
     const isPasswordCorrect = await bcrypt.compare(password, hash );
-    console.log("Matching: " + isPasswordCorrect);
     if(isPasswordCorrect){
 
     const token = await jwt.sign({_id:user._id}, "secretKey", {expiresIn: "1d"});
@@ -54,14 +55,37 @@ authRouter.post('/login', async (req, res) => {
 
 authRouter.patch('/forgetPassword', async (req, res) => {
     try{
+
         const { email, password } = req.body;
         const user = await User.findOne({email:email});
         if(!user){
             throw new Error('No Such User Exists');
         }
+        const transporter = nodemailer.createTransport({
+            host: "smtp.ethereal.email",
+            port: 587,
+            secure: false, 
+            auth: {
+              email: email,
+              pass: password,
+            },
+        });
 
+        const info = await transporter.sendMail({
+            from: '"Server" <Server@gmail.com>', 
+            to: email, 
+            subject: "Reset Password", 
+            text: "Change Your Password", 
+          });
+        
+        console.log("Message sent: %s", info.messageId);
+        const hashPassword = await bcrypt.hash(password, 10);
+        user.password = hashPassword;
+        await user.save();
+        res.send('Password Updated Successfully');
     }
     catch(err){
+        console.log(err);
         res.status(400).send('Error Occured in forgetPassword' + err.message);
     }
 })
