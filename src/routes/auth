@@ -2,7 +2,6 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const User = require('../models/user');
 const jwt = require('jsonwebtoken');
-const validator = require('validator');
 const { validateSingUpData } = require('../utils/validation');
 const authRouter = express.Router();
 
@@ -29,14 +28,17 @@ authRouter.post('/signUp', async (req, res) => {
 authRouter.post('/login', async (req, res) => {
    try{
     const { email, password } = req.body;
-    const user = await User.find({email:email});
+    const user = await User.findOne({email:email});
     if(!user){
         throw new Error('Please Login No Such Email Exists');
     }
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
-
+    const hash = user.password;
+    // console.log(user);
+    const isPasswordCorrect = await bcrypt.compare(password, hash );
+    console.log("Matching: " + isPasswordCorrect);
     if(isPasswordCorrect){
-    const token = await jwt.sign({_id:user._id,}, "secretKey", {expiresIn: "1d"});
+
+    const token = await jwt.sign({_id:user._id}, "secretKey", {expiresIn: "1d"});
     res.cookie("token", token);
     res.send('Login Success');
     }
@@ -48,6 +50,34 @@ authRouter.post('/login', async (req, res) => {
   catch(err){
     res.status(400).send('Error Occured in Login ' + err.message);
   }
+})
+
+authRouter.patch('/forgetPassword', async (req, res) => {
+    try{
+        const { email, password } = req.body;
+        const user = await User.findOne({email:email});
+        if(!user){
+            throw new Error('No Such User Exists');
+        }
+
+    }
+    catch(err){
+        res.status(400).send('Error Occured in forgetPassword' + err.message);
+    }
+})
+
+authRouter.get('/', async (req, res) => {
+    try{
+        const {firstName, lastName, email } = req.user;
+        res.json({
+            "firstName":firstName,
+            "lastName":lastName,
+            "email":email,
+        });
+    }
+    catch(err){
+        res.status(400).send('Error Occured in getting user ' + err.message);
+    }
 })
 
 module.exports = authRouter;
