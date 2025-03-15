@@ -2,6 +2,9 @@ const express = require('express');
 const { connectDB } = require('./config/dbConnection');
 const cookieParser = require('cookie-parser');
 const authRouter = require('./routes/auth');
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 const app = express();
 app.use(express.json());

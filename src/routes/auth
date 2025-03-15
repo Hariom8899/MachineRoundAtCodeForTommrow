@@ -5,7 +5,6 @@ const jwt = require('jsonwebtoken');
 const { validateSingUpData } = require('../utils/validation');
 const nodemailer = require("nodemailer");
 
-
 const authRouter = express.Router();
 
 authRouter.post('/signUp', async (req, res) => {
@@ -53,42 +52,75 @@ authRouter.post('/login', async (req, res) => {
   }
 })
 
-authRouter.patch('/forgetPassword', async (req, res) => {
-    try{
+authRouter.patch('/reset-password', async (req, res) => {
+  const { email } = req.body;
 
-        const { email, password } = req.body;
-        const user = await User.findOne({email:email});
-        if(!user){
-            throw new Error('No Such User Exists');
-        }
-        const transporter = nodemailer.createTransport({
-            host: "smtp.ethereal.email",
-            port: 587,
-            secure: false, 
-            auth: {
-              email: email,
-              pass: password,
-            },
-        });
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
-        const info = await transporter.sendMail({
-            from: '"Server" <Server@gmail.com>', 
-            to: email, 
-            subject: "Reset Password", 
-            text: "Change Your Password", 
-          });
-        
-        console.log("Message sent: %s", info.messageId);
-        const hashPassword = await bcrypt.hash(password, 10);
-        user.password = hashPassword;
-        await user.save();
-        res.send('Password Updated Successfully');
-    }
-    catch(err){
-        console.log(err);
-        res.status(400).send('Error Occured in forgetPassword' + err.message);
-    }
-})
+    const resetToken = jwt.sign({ _id: user._id }, "secretKey", { expiresIn: '1h' });
+    console.log(resetToken);
+
+    // Generate reset link
+    const resetLink = `http://localhost:5000/reset-password/${resetToken}`;
+
+    // Set up email transporter
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER, // sender address
+      to: 'hariomtiwari.22.88@gmail.com', // list of receivers
+      subject: 'Subject', // Subject line
+      text: 'Hello world?', // plain text body
+    };
+    
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.log('Error:', error);
+      } else {
+        console.log('Email sent:', info.response);
+      }
+    });
+
+    res.status(200).json({ message: 'Password reset link sent to your email.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+authRouter.post('/reset-password/:token', async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
+
+  try {
+    // Verify the token
+    const decoded = jwt.verify(token, "secretKey");
+    const userId = decoded.userId;
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Update the user's password
+    await User.findByIdAndUpdate(userId, { password: hashedPassword });
+
+    res.status(200).json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: 'Invalid or expired token' });
+  }
+});
+
 
 authRouter.get('/', async (req, res) => {
     try{
